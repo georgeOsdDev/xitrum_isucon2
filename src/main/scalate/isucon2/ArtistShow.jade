@@ -1,0 +1,15 @@
+- import scala.collection.mutable.ArrayBuffer
+- import isucon2._
+
+- val artist = at("artist").asInstanceOf[(Int, String)]
+- val tickets = at("tickets").asInstanceOf[ArrayBuffer[(Int, String, Int)]]
+
+h2= artist._2
+
+ul
+  - for (ticket <- tickets)
+    li.ticket
+      a(href={url[TicketShow]("ticketid" -> ticket._1)})= ticket._2
+      | 残り
+      span.count= ticket._3
+      | 枚

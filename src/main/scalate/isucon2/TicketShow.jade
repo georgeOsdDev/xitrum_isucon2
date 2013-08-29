@@ -1,0 +1,37 @@
+- import scala.collection.mutable.HashMap
+- import scala.collection.mutable.ArrayBuffer
+- import isucon2._
+
+- val variations = at("variations").asInstanceOf[ArrayBuffer[(Int, String, Int, HashMap[String, Int])]]
+- val ticket = at("ticket").asInstanceOf[(Int, String, Int, String)]
+
+h2= (ticket._4 + ticket._2)
+
+ul
+  - for (variation <- variations)
+    li.variation
+      form(method="POST" action="/buy")
+        != antiCSRFInput
+        input(type="hidden" name="ticket_id" value={ticket._1})
+        input(type="hidden" name="variation_id" value={variation._1})
+        span.variation_name= variation._2
+        |  残り
+        - val id = s"vacancy_${variation._1}"
+        span.vacancy(id={id}) = variation._3
+        | 席
+        input(type="text" name="member_id" value="")
+        input(type="submit" value="購入")
+
+h3 席状況
+- for (variation <- variations)
+  - val stock = variation._4
+  h4= variation._2
+  table.seats(data-variationid={variation._1})
+    - val abc = (0 to 63).map { i => "%02d".format(i) }
+    - for (i <- abc)
+      tr
+      - val xyz = (0 to 63).map { j => "%02d".format(j) }
+      - for (j <- xyz)
+        - val key = i + "-" + j
+        - val cssClass = if (stock(key) != 0) "unavailable" else "available"
+        td(id={key} class={cssClass})

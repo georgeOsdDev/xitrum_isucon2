@@ -1,0 +1,15 @@
+- import scala.collection.mutable.HashMap
+- import scala.collection.mutable.ArrayBuffer
+- import isucon2._
+
+- val member_id = at("memberId").asInstanceOf[String]
+- val seat_id = at("seatId").asInstanceOf[String]
+
+h2 予約完了
+| 会員ID:
+span.member_id= member_id
+| で
+span.result(data-result="success")
+  | &quot;
+  span.seat= seat_id
+  | &quot;の席を購入しました。
