@@ -7,6 +7,33 @@ import scala.collection.mutable.ArrayBuffer
 import xitrum.{ Action, Server }
 import xitrum.annotation.{ GET, POST }
 import java.sql.Statement
+import akka.actor.{Actor, ActorRef}
+import org.jboss.netty.handler.codec.http.HttpHeaders
+import org.jboss.netty.util.CharsetUtil
+import java.text.SimpleDateFormat
+
+class EchoServer extends Actor {
+  def receive = {
+    case string: String =>
+      sender ! ("string: " + string)
+
+    case anything =>
+      sender ! anything
+  }
+}
+
+case class Send(serverRef: ActorRef, anything: Any)
+
+class EchoClient extends Actor {
+  def receive = {
+    case Send(server, anything) =>
+      server ! anything
+
+    case anything =>
+      println("Client got back: " + anything)
+  }
+}
+
 
 object Boot {
   def main(args: Array[String]) {
@@ -14,6 +41,36 @@ object Boot {
 
     Server.start()
   }
+}
+
+object RecentSold {
+
+  def get():ArrayBuffer[(Int, String, String, String)] = {
+    val items = new ArrayBuffer[(Int, String, String, String)]
+        val sql = """SELECT stock.seat_id, variation.name AS v_name, ticket.name AS t_name, artist.name AS a_name FROM stock
+           JOIN variation ON stock.variation_id = variation.id
+           JOIN ticket ON variation.ticket_id = ticket.id
+           JOIN artist ON ticket.artist_id = artist.id
+         WHERE order_id IS NOT NULL
+         ORDER BY order_id DESC LIMIT 10"""
+      val con = DriverManager.getConnection("jdbc:mysql://localhost/isucon2", "root", "root")
+      val stmt = con.createStatement();
+      val rs = stmt.executeQuery(sql)
+      while (rs.next()) {
+        val id = rs.getInt("seat_id")
+        val v_name = rs.getString("v_name")
+        val t_name = rs.getString("t_name")
+        val a_name = rs.getString("a_name")
+        val item = (id, v_name, t_name, a_name)
+        items.append(item)
+      }
+
+      rs.close();
+      stmt.close();
+      con.close();
+      items
+  }
+
 }
 
 trait DefaultLayout extends Action {
@@ -28,6 +85,8 @@ trait DefaultLayout extends Action {
     stmt.close();
     con.close();
   }
+  at("recent_sold") = RecentSold.get()
+
 }
 
 @GET("")
@@ -173,5 +232,45 @@ class TicketBuy extends DefaultLayout {
           respondText("soldOut")
       }
     }
+  }
+}
+
+@GET("/admin")
+class Admin extends DefaultLayout {
+  def execute() {
+      respondView()
+  }
+}
+
+@GET("/admin/order")
+class CSV extends Action {
+  def execute() {
+    val items = new ArrayBuffer[(Int, String, String, String)]
+    val sql = """SELECT order_request.*, stock.seat_id, stock.variation_id, stock.updated_at
+             FROM order_request JOIN stock ON order_request.id = stock.order_id
+             ORDER BY order_request.id ASC"""
+    val con = DriverManager.getConnection("jdbc:mysql://localhost/isucon2", "root", "root")
+    val stmt = con.createStatement();
+    val rs = stmt.executeQuery(sql)
+    var body =""
+    while (rs.next()) {
+      val id = rs.getInt("id")
+      val member_id = rs.getString("member_id")
+      val seat_id = rs.getInt("seat_id")
+      val variation_id = rs.getInt("variation_id")
+      val updated_at = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss").format(rs.getDate("updated_at"))
+      body += s"""${id},${member_id},${seat_id},${variation_id},${variation_id},${updated_at}
+"""
+    }
+    response.setHeader(HttpHeaders.Names.CONTENT_TYPE, "text/csv")
+    response.setHeader(HttpHeaders.Names.CONTENT_LENGTH, body.getBytes(CharsetUtil.UTF_8).length)
+    respondText(body)
+  }
+}
+
+@POST("/admin")
+class Init extends Action {
+  def execute() {
+      //TODO : Copy Initialize data code
   }
 }
