@@ -1,39 +1,18 @@
 package isucon2
 
-import java.sql.DriverManager
-import java.sql.ResultSet
+import java.sql.{DriverManager,ResultSet,Statement}
+import java.text.SimpleDateFormat
 import scala.collection.mutable.HashMap
 import scala.collection.mutable.ArrayBuffer
-import xitrum.{ Action, Server }
-import xitrum.annotation.{ GET, POST }
-import java.sql.Statement
-import akka.actor.{Actor, ActorRef}
 import org.jboss.netty.handler.codec.http.HttpHeaders
 import org.jboss.netty.util.CharsetUtil
-import java.text.SimpleDateFormat
-
-class EchoServer extends Actor {
-  def receive = {
-    case string: String =>
-      sender ! ("string: " + string)
-
-    case anything =>
-      sender ! anything
-  }
-}
-
-case class Send(serverRef: ActorRef, anything: Any)
-
-class EchoClient extends Actor {
-  def receive = {
-    case Send(server, anything) =>
-      server ! anything
-
-    case anything =>
-      println("Client got back: " + anything)
-  }
-}
-
+import org.jboss.netty.handler.codec.http.HttpResponseStatus
+import akka.actor.{Actor, ActorRef}
+import xitrum.{ Action, SkipCSRFCheck, Server }
+import xitrum.annotation.{ GET, POST }
+import xitrum.util.Loader
+import akka.dispatch.Foreach
+import xitrum.SkipCSRFCheck
 
 object Boot {
   def main(args: Array[String]) {
@@ -45,8 +24,8 @@ object Boot {
 
 object RecentSold {
 
-  def get():ArrayBuffer[(Int, String, String, String)] = {
-    val items = new ArrayBuffer[(Int, String, String, String)]
+  def get():ArrayBuffer[(String, String, String, String)] = {
+    val items = new ArrayBuffer[(String, String, String, String)]
         val sql = """SELECT stock.seat_id, variation.name AS v_name, ticket.name AS t_name, artist.name AS a_name FROM stock
            JOIN variation ON stock.variation_id = variation.id
            JOIN ticket ON variation.ticket_id = ticket.id
@@ -57,7 +36,7 @@ object RecentSold {
       val stmt = con.createStatement();
       val rs = stmt.executeQuery(sql)
       while (rs.next()) {
-        val id = rs.getInt("seat_id")
+        val id = rs.getString("seat_id")
         val v_name = rs.getString("v_name")
         val t_name = rs.getString("t_name")
         val a_name = rs.getString("a_name")
@@ -73,7 +52,7 @@ object RecentSold {
 
 }
 
-trait DefaultLayout extends Action {
+trait DefaultLayout extends Action with SkipCSRFCheck{
   override def layout = renderViewNoLayout(classOf[DefaultLayout])
 
   protected def executeQuery(sql: String)(fun: (ResultSet) => Unit) {
@@ -121,8 +100,8 @@ class ArtistShow extends DefaultLayout {
         at("artist") = artist
 
         executeQuery(s"SELECT id, name FROM ticket WHERE artist_id = ${id} ORDER BY id") { rs2 =>
-          val tickets = new ArrayBuffer[(Int, String, Int)]
-          if (rs2.next()) {
+          val tickets = new ArrayBuffer[(Int, String, String)]
+          while (rs2.next()) {
             val tid = rs2.getInt("id")
             val tname = rs2.getString("name")
             val countsql = s"""SELECT COUNT(*) AS cnt FROM variation
@@ -131,7 +110,7 @@ class ArtistShow extends DefaultLayout {
 
             executeQuery(countsql) { rs3 =>
               if (rs3.next()) {
-                val ticket = (tid, tname, rs3.getInt("cnt"))
+                val ticket = (tid, tname, rs3.getString("cnt"))
                 tickets.append(ticket)
               }
             }
@@ -269,8 +248,18 @@ class CSV extends Action {
 }
 
 @POST("/admin")
-class Init extends Action {
+class Init extends Action with SkipCSRFCheck{
   def execute() {
-      //TODO : Copy Initialize data code
+    val con = DriverManager.getConnection("jdbc:mysql://localhost/isucon2", "root", "root")
+    val sql = Loader.stringFromClasspath("initial_data.sql")
+    sql.split(";").foreach{s =>
+    if (s.length > 1){
+        val stmt = con.createStatement()
+        stmt.execute(s)
+        stmt.close()
+      }
+    }
+    con.close();
+    redirectTo("/admin", HttpResponseStatus.FOUND)
   }
 }

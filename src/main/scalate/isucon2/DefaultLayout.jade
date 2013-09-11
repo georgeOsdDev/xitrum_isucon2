@@ -1,7 +1,7 @@
 - import scala.collection.mutable.ArrayBuffer
 - import isucon2._
 
-- val recent_sold = at("recent_sold").asInstanceOf[ArrayBuffer[(Int, String, String, String)]]
+- val recent_sold = at("recent_sold").asInstanceOf[ArrayBuffer[(String, String, String, String)]]
 
 !!! 5
 html
@@ -24,14 +24,14 @@ html
       a(href={url[SiteIndex]})
         img(src="/images/isucon_title.jpg")
     #sidebar
-      - if (recent_sold.length > 0)
-        table
-          tr
-            th(colspan="2") 最近購入されたチケット
-            - for (item <- recent_sold)
-              tr
-                td.recent_variation= s"${item._2} ${item._3} ${item._4}"
-                td.recent_seat_id= item._1
+      table
+        tr
+          th(colspan="2") 最近購入されたチケット
+          - if (recent_sold.length > 0)
+          - for (item <- recent_sold)
+            tr
+              td.recent_variation= s"${item._4} ${item._3} ${item._2}"
+              td.recent_seat_id= item._1
 
     #content
       != renderedView
